@@ -44,8 +44,7 @@ instance Show t => Show (List t) where
   show = show . hlist
 
 -- The list of integers from zero to infinity.
-infinity ::
-  List Integer
+infinity :: List Integer
 infinity =
   let inf x = x :. inf (x+1)
   in inf 0
@@ -72,12 +71,10 @@ foldLeft f b (h :. t) = let b' = f b h in b' `seq` foldLeft f b' t
 -- prop> \x -> x `headOr` infinity == 0
 --
 -- prop> \x -> x `headOr` Nil == x
-headOr ::
-  a
-  -> List a
-  -> a
-headOr =
-  error "todo: Course.List#headOr"
+headOr :: a -> List a -> a
+headOr d Nil = d
+headOr _ (x:._) = x
+
 
 -- | The product of the elements of a list.
 --
@@ -89,11 +86,8 @@ headOr =
 --
 -- >>> product (1 :. 2 :. 3 :. 4 :. Nil)
 -- 24
-product ::
-  List Int
-  -> Int
-product =
-  error "todo: Course.List#product"
+product :: List Int -> Int
+product = foldLeft (*) 1
 
 -- | Sum the elements of the list.
 --
@@ -104,11 +98,8 @@ product =
 -- 10
 --
 -- prop> \x -> foldLeft (-) (sum x) x == 0
-sum ::
-  List Int
-  -> Int
-sum =
-  error "todo: Course.List#sum"
+sum :: List Int -> Int
+sum = foldLeft (+)  0
 
 -- | Return the length of the list.
 --
@@ -116,11 +107,10 @@ sum =
 -- 3
 --
 -- prop> \x -> sum (map (const 1) x) == length x
-length ::
-  List a
-  -> Int
-length =
-  error "todo: Course.List#length"
+length :: List a -> Int
+length = foldLeft (const . (+1)) $ 0
+-- which is the same as:
+--length = foldLeft (\acc _ -> acc + 1) 0
 
 -- | Map the given function on each element of the list.
 --
@@ -130,12 +120,11 @@ length =
 -- prop> \x -> headOr x (map (+1) infinity) == 1
 --
 -- prop> \x -> map id x == x
-map ::
-  (a -> b)
-  -> List a
-  -> List b
-map =
-  error "todo: Course.List#map"
+map :: (a -> b) -> List a -> List b
+map f = foldRight ((:.) . f) Nil
+-- Or
+--map f (x :. xs) =  f x :. map f xs
+--map _ _         =  Nil
 
 -- | Return elements satisfying the given predicate.
 --
@@ -147,12 +136,11 @@ map =
 -- prop> \x -> filter (const True) x == x
 --
 -- prop> \x -> filter (const False) x == Nil
-filter ::
-  (a -> Bool)
-  -> List a
-  -> List a
-filter =
-  error "todo: Course.List#filter"
+filter :: (a -> Bool) -> List a -> List a
+filter p (x:.xs) =
+  if p x then (x :. filter p xs)
+  else filter p xs
+filter _ _ = Nil
 
 -- | Append two lists to a new list.
 --
@@ -170,8 +158,7 @@ filter =
   List a
   -> List a
   -> List a
-(++) =
-  error "todo: Course.List#(++)"
+(++) = flip $ foldRight (:.)
 
 infixr 5 ++
 
@@ -188,8 +175,9 @@ infixr 5 ++
 flatten ::
   List (List a)
   -> List a
-flatten =
-  error "todo: Course.List#flatten"
+flatten = foldRight (++) Nil
+-- Or
+--flatten = foldLeft (++) Nil
 
 -- | Map a function then flatten to a list.
 --
@@ -201,12 +189,8 @@ flatten =
 -- prop> \x -> headOr x (flatMap id (y :. infinity :. Nil)) == headOr 0 y
 --
 -- prop> \x -> flatMap id (x :: List (List Int)) == flatten x
-flatMap ::
-  (a -> List b)
-  -> List a
-  -> List b
-flatMap =
-  error "todo: Course.List#flatMap"
+flatMap :: (a -> List b) -> List a -> List b
+flatMap f = flatten . map f
 
 -- | Flatten a list of lists to a list (again).
 -- HOWEVER, this time use the /flatMap/ function that you just wrote.
@@ -215,8 +199,7 @@ flatMap =
 flattenAgain ::
   List (List a)
   -> List a
-flattenAgain =
-  error "todo: Course.List#flattenAgain"
+flattenAgain = flatMap id
 
 -- | Convert a list of optional values to an optional list of values.
 --
@@ -237,11 +220,18 @@ flattenAgain =
 --
 -- >>> seqOptional (Empty :. map Full infinity)
 -- Empty
-seqOptional ::
-  List (Optional a)
-  -> Optional (List a)
-seqOptional =
-  error "todo: Course.List#seqOptional"
+
+-- TODO: refactor to more elegant solution
+seqOptional :: List (Optional a) -> Optional (List a)
+seqOptional Nil = Full Nil
+seqOptional (Empty :. _) = Empty
+seqOptional l
+  | length (filter isFull l) /= length l = Empty
+  | otherwise = Full (map extract l)
+  where isFull a = case a of
+          Empty -> False
+          Full _ -> True
+        extract (Full a) = a
 
 -- | Find the first element in the list matching the predicate.
 --
@@ -259,12 +249,10 @@ seqOptional =
 --
 -- >>> find (const True) infinity
 -- Full 0
-find ::
-  (a -> Bool)
-  -> List a
-  -> Optional a
-find =
-  error "todo: Course.List#find"
+find :: (a -> Bool) -> List a -> Optional a
+find _ Nil = Empty
+find p (x :. xs) =
+  if p x then Full x else find p xs
 
 -- | Determine if the length of the given list is greater than 4.
 --
@@ -279,12 +267,10 @@ find =
 --
 -- >>> lengthGT4 infinity
 -- True
-lengthGT4 ::
-  List a
-  -> Bool
-lengthGT4 =
-  error "todo: Course.List#lengthGT4"
-
+lengthGT4 :: List a -> Bool
+lengthGT4 (_ :. _ :. _ :. _ :. _ :. _) = True
+lengthGT4 _ = False
+--lengthGT4 = (>4) . length -- NOTE: Not safe for infinite lists
 -- | Reverse a list.
 --
 -- >>> reverse Nil
@@ -296,11 +282,8 @@ lengthGT4 =
 -- prop> \x -> let types = x :: List Int in reverse x ++ reverse y == reverse (y ++ x)
 --
 -- prop> \x -> let types = x :: Int in reverse (x :. Nil) == x :. Nil
-reverse ::
-  List a
-  -> List a
-reverse =
-  error "todo: Course.List#reverse"
+reverse :: List a -> List a
+reverse = foldLeft (flip (:.)) Nil
 
 -- | Produce an infinite `List` that seeds with the given value at its head,
 -- then runs the given function for subsequent elements
@@ -310,12 +293,12 @@ reverse =
 --
 -- >>> let (x:.y:.z:.w:._) = produce (*2) 1 in [x,y,z,w]
 -- [1,2,4,8]
-produce ::
-  (a -> a)
-  -> a
-  -> List a
+produce :: (a -> a) -> a -> List a
 produce f x =
-  error "todo: Course.List#produce"
+  rec f x (x :. Nil)
+  where rec f' x' acc = x' :. rec f' (f' x') acc
+
+
 
 -- | Do anything other than reverse a list.
 -- Is it even possible?
@@ -330,7 +313,8 @@ notReverse ::
   List a
   -> List a
 notReverse =
-  error "todo: Is it even possible?"
+  --error "todo: Is it even possible?"
+  error "This is not possible since a pure functions are deterministic and have referential transparency. In other words, a pure function f applied to x will always yield the same y = f(x) for all x. However, nondeterminism is possible in a language like [curry](https://curry.pages.ps.informatik.uni-kiel.de/curry-lang.org/)"
 
 ---- End of list exercises
 
